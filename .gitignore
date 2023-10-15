@@ -10,3 +10,6 @@ dist
 src/oncall/ui/static/.webassets-cache/
 src/oncall/ui/static/bundles
 ops/charts/oncall/charts/
+.zip
+.idea
+
