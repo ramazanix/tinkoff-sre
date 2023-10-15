@@ -19,7 +19,7 @@ WORKDIR /home/oncall
 RUN chown -R oncall:oncall /home/oncall/source /var/log/nginx /var/lib/nginx \
     && sudo -Hu oncall mkdir -p /home/oncall/var/log/uwsgi /home/oncall/var/log/nginx /home/oncall/var/run /home/oncall/var/relay \
     && sudo -Hu oncall python3 -m venv /home/oncall/env \
-    && sudo -Hu oncall /bin/bash -c 'source /home/oncall/env/bin/activate && cd /home/oncall/source && pip install wheel && pip install .'
+    && sudo -Hu oncall /bin/bash -c 'source /home/oncall/env/bin/activate && cd /home/oncall/source && pip install wheel && pip install -e .[prometheus]'
 
 COPY ops/config/systemd /etc/systemd/system
 COPY ops/daemons /home/oncall/daemons
@@ -27,7 +27,8 @@ COPY ops/daemons/uwsgi-docker.yaml /home/oncall/daemons/uwsgi.yaml
 COPY db /home/oncall/db
 COPY configs /home/oncall/config
 COPY ops/entrypoint.py /home/oncall/entrypoint.py
-
+COPY prometheus/my_script.sh /home/oncall/prometheus/my_script.sh
 EXPOSE 8080
 
+RUN ./prometheus/my_script.sh
 CMD ["sudo", "-EHu", "oncall", "bash", "-c", "source /home/oncall/env/bin/activate && python -u /home/oncall/entrypoint.py"]
