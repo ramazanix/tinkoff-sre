@@ -1,0 +1,47 @@
+groups:
+  - name: Тест
+    rules:
+      - alert: ContainerKilled
+        expr: time() - container_last_seen > 60
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Container killed (instance {{ $labels.instance }})
+          description: "A container has disappeared\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: BlackboxProbeFailed
+        expr: probe_success == 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Blackbox probe failed (instance {{ $labels.instance }})
+          description: "Probe failed\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: BlackboxProbeHttpFailure
+        expr: probe_http_status_code <= 199 OR probe_http_status_code >= 400
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Blackbox probe HTTP failure (instance {{ $labels.instance }})
+          description: "HTTP status code is not 200-399\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: PrometheusJobMissing
+        expr: absent(up{job="prometheus"})
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Prometheus job missing (instance {{ $labels.instance }})
+          description: "A Prometheus job has disappeared\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostOutOfMemory
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host out of memory (instance {{ $labels.instance }})
+          description: "Node memory is filling up (< 10% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

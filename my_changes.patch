@@ -1,0 +1,72 @@
+diff --git a/Dockerfile b/Dockerfile
+index d9675a8..82f764c 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -19,7 +19,7 @@ WORKDIR /home/oncall
+ RUN chown -R oncall:oncall /home/oncall/source /var/log/nginx /var/lib/nginx \
+     && sudo -Hu oncall mkdir -p /home/oncall/var/log/uwsgi /home/oncall/var/log/nginx /home/oncall/var/run /home/oncall/var/relay \
+     && sudo -Hu oncall python3 -m venv /home/oncall/env \
+-    && sudo -Hu oncall /bin/bash -c 'source /home/oncall/env/bin/activate && cd /home/oncall/source && pip install wheel && pip install .'
++    && sudo -Hu oncall /bin/bash -c 'source /home/oncall/env/bin/activate && cd /home/oncall/source && pip install wheel && pip install -e .[prometheus]'
+ 
+ COPY ops/config/systemd /etc/systemd/system
+ COPY ops/daemons /home/oncall/daemons
+diff --git a/configs/config.docker.yaml b/configs/config.docker.yaml
+index 76d4354..a7d4c0c 100644
+--- a/configs/config.docker.yaml
++++ b/configs/config.docker.yaml
+@@ -3,7 +3,7 @@ server:
+   port: 8080
+ debug: True
+ oncall_host: http://localhost:8080
+-metrics: dummy
++metrics: prometheus
+ db:
+   conn:
+     kwargs:
+@@ -79,3 +79,7 @@ user_validator:
+ 
+ slack_instance: foobar
+ header_color: '#3a3a3a'
++
++prometheus:
++  oncall-notifier:
++    server_port: 8002
+diff --git a/db/dummy_data.sql b/db/dummy_data.sql
+index fdd9f53..28bd14c 100644
+--- a/db/dummy_data.sql
++++ b/db/dummy_data.sql
+@@ -13,7 +13,7 @@ UNLOCK TABLES;
+ 
+ LOCK TABLES `team` WRITE;
+ /*!40000 ALTER TABLE `team` DISABLE KEYS */;
+-INSERT INTO `team` VALUES (1,'Test Team','#team','#team-alerts','team@example.com','US/Pacific',1,NULL,0,NULL);
++INSERT INTO `team` VALUES (1,'Test Team','#team','#team-alerts','team@example.com','US/Pacific',1,NULL,0,NULL,0);
+ /*!40000 ALTER TABLE `team` ENABLE KEYS */;
+ UNLOCK TABLES;
+ 
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 3dc81dc..accd72f 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -22,6 +22,20 @@ services:
+     networks:
+       - iris
+ 
++  prometheus:
++    image: prom/prometheus:latest
++    container_name: prometheus
++    ports:
++      - "9090:9090"
++    command:
++      - --config.file=/etc/prometheus/prometheus.yml
++    volumes:
++      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
++    depends_on:
++      - oncall-web
++    networks:
++      - iris
++
+ networks:
+   iris:
+     name: iris

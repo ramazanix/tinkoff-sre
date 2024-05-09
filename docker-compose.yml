@@ -1,11 +1,13 @@
-version: '3'
+version: "3"
 
 services:
   oncall-web:
     build: .
     hostname: oncall
-    ports:
-      - "8080:8080"
+    # ports:
+    #   - "8080:8080"
+    labels:
+      co.elastic.logs/enabled: true
     environment:
       - DOCKER_DB_BOOTSTRAP=1
       - IRIS_API_HOST=iris
@@ -14,87 +16,385 @@ services:
       - textfile:/var/lib/node_exporter/textfile_collector
     networks:
       - iris
-  
+
+  # oncall-web2:
+  #   build: .
+  #   hostname: oncall2
+  #   ports:
+  #     - "8081:8080"
+  #   labels:
+  #     co.elastic.logs/enabled: true
+  #   environment:
+  #     - DOCKER_DB_BOOTSTRAP=1
+  #     - IRIS_API_HOST=iris
+  #   volumes:
+  #     - ./configs/config.docker.yaml:/home/oncall/config/config.yaml
+  #     - textfile:/var/lib/node_exporter/textfile_collector
+  #   networks:
+  #     - iris
+
   oncall-mysql:
     hostname: oncall-mysql
     image: mysql:5.7
+    labels:
+      co.elastic.logs/enabled: true
     environment:
       - MYSQL_ROOT_PASSWORD=1234
     networks:
       - iris
 
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   labels:
+  #     co.elastic.logs/enabled: false
+  #   command:
+  #     - --config.file=/etc/prometheus/prometheus.yml
+  #   volumes:
+  #     - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #     - ./prometheus/alertmanager/rules.yml:/etc/prometheus/rules.yml
+  #   depends_on:
+  #     - oncall-web
+  #   networks:
+  #     - iris
+
+  # alertmanager:
+  #   image: prom/alertmanager
+  #   container_name: alertmanager
+  #   ports:
+  #     - 9093:9093
+  #   volumes:
+  #     - ./prometheus/alertmanager/:/etc/alertmanager/
+  #   restart: always
+  #   command:
+  #     - "--config.file=/etc/alertmanager/alertmanager.yml"
+  #   depends_on:
+  #     - prometheus
+  #   networks:
+  #     - iris
+
+  # node-exporter:
+  #   image: quay.io/prometheus/node-exporter:latest
+  #   container_name: node-exporter
+  #   labels:
+  #     co.elastic.logs/enabled: false
+  #   command:
+  #     - "--path.procfs=/host/proc"
+  #     - "--path.rootfs=/rootfs"
+  #     - "--path.sysfs=/host/sys"
+  #     - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+  #     - "--no-collector.mdadm"
+  #     - "--no-collector.ipvs"
+  #     - "--no-collector.infiniband"
+  #     - "--no-collector.bonding"
+  #     - "--no-collector.conntrack"
+  #     - "--no-collector.fibrechannel"
+  #     - "--no-collector.nfs"
+  #     - "--no-collector.nfsd"
+  #     - "--no-collector.rapl"
+  #     - "--no-collector.tapestats"
+  #     - "--no-collector.zfs"
+  #     - "--collector.textfile.directory=/var/lib/node_exporter/textfile_collector"
+  #   volumes:
+  #     - /proc:/host/proc:ro
+  #     - /sys:/host/sys:ro
+  #     - /:/rootfs:ro
+  #     - textfile:/var/lib/node_exporter/textfile_collector
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9100:9100"
+  #   networks:
+  #     - iris
+  #   depends_on:
+  #     - oncall-web
+
+  # blackbox_exporter:
+  #   image: prom/blackbox-exporter
+  #   container_name: backbox_exporter
+  #   labels:
+  #     co.elastic.logs/enabled: false
+  #   volumes:
+  #     - ./prometheus/blackbox.yml:/config/blackbox.yml
+  #   command:
+  #     - "--config.file=/config/blackbox.yml"
+  #   restart: unless-stopped
+  #   networks:
+  #     - iris
+  #   ports:
+  #     - "9115:9115"
+  #   depends_on:
+  #     - oncall-web
+
+  # custom_exporter:
+  #   build: ./prometheus/custom_exporter
+  #   container_name: custom_exporter
+  #   labels:
+  #     co.elastic.logs/enabled: false
+  #   networks:
+  #     - iris
+  #   ports:
+  #     - "8000:8000"
+
+  # my_prober:
+  #   build:
+  #     context: ./prometheus/my_prober
+  #     dockerfile: ./Dockerfile
+  #   container_name: my_prober
+  #   labels:
+  #     co.elastic.logs/enabled: false
+  #   networks:
+  #     - iris
+  #   ports:
+  #     - "9081:9081"
+  #   depends_on:
+  #     - oncall-web
+
+  # my_sla:
+  #   build:
+  #     context: ./prometheus/sla
+  #     dockerfile: ./Dockerfile
+  #   container_name: sla_checker
+  #   labels:
+  #     co.elastic.logs/enabled: false
+  #   networks:
+  #     - iris
+  #   depends_on:
+  #     - oncall-mysql
+
+  # setup:
+  #   image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+  #   volumes:
+  #     - certs:/usr/share/elasticsearch/config/certs
+  #   labels:
+  #     co.elastic.logs/enabled: false
+  #   user: "0"
+  #   command: >
+  #     bash -c '
+  #       if [ x${ELASTIC_PASSWORD} == x ]; then
+  #       echo "Set the ELASTIC_PASSWORD environment variable in the .env file";
+  #       exit 1;
+  #       elif [ x${KIBANA_PASSWORD} == x ]; then
+  #       echo "Set the KIBANA_PASSWORD environment variable in the .env file";
+  #       exit 1;
+  #       fi;
+  #       if [ ! -f config/certs/ca.zip ]; then
+  #       echo "Creating CA";
+  #       bin/elasticsearch-certutil ca --silent --pem -out config/certs/ca.zip;
+  #       unzip config/certs/ca.zip -d config/certs;
+  #       fi;
+  #       if [ ! -f config/certs/certs.zip ]; then
+  #       echo "Creating certs";
+  #       echo -ne \
+  #       "instances:\n"\
+  #       "  - name: es01\n"\
+  #       "    dns:\n"\
+  #       "      - es01\n"\
+  #       "      - localhost\n"\
+  #       "    ip:\n"\
+  #       "      - 127.0.0.1\n"\
+  #       "  - name: kibana\n"\
+  #       "    dns:\n"\
+  #       "      - kibana\n"\
+  #       "      - localhost\n"\
+  #       "    ip:\n"\
+  #       "      - 127.0.0.1\n"\
+  #       > config/certs/instances.yml;
+  #       bin/elasticsearch-certutil cert --silent --pem -out config/certs/certs.zip --in config/certs/instances.yml --ca-cert config/certs/ca/ca.crt --ca-key config/certs/ca/ca.key;
+  #       unzip config/certs/certs.zip -d config/certs;
+  #       fi;
+  #       echo "Setting file permissions"
+  #       chown -R root:root config/certs;
+  #       find . -type d -exec chmod 750 \{\} \;;
+  #       find . -type f -exec chmod 640 \{\} \;;
+  #       echo "Waiting for Elasticsearch availability";
+  #       until curl -s --cacert config/certs/ca/ca.crt https://es01:9200 | grep -q "missing authentication credentials"; do sleep 30; done;
+  #       echo "Setting kibana_system password";
+  #       until curl -s -X POST --cacert config/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" -H "Content-Type: application/json" https://es01:9200/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do sleep 10; done;
+  #       echo "All done!";
+  #     '
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "[ -f config/certs/es01/es01.crt ]"]
+  #     interval: 1s
+  #     timeout: 5s
+  #     retries: 120
+
+  # es01:
+  #   depends_on:
+  #     setup:
+  #       condition: service_healthy
+  #   image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+  #   labels:
+  #     co.elastic.logs/enabled: false
+  #   volumes:
+  #     - certs:/usr/share/elasticsearch/config/certs
+  #     - esdata01:/usr/share/elasticsearch/data
+  #   ports:
+  #     - ${ES_PORT}:9200
+  #   environment:
+  #     - node.name=es01
+  #     - cluster.name=${CLUSTER_NAME}
+  #     - discovery.type=single-node
+  #     - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+  #     - bootstrap.memory_lock=true
+  #     - xpack.security.enabled=false
+  #     - xpack.security.http.ssl.enabled=false
+  #     - xpack.security.http.ssl.key=certs/es01/es01.key
+  #     - xpack.security.http.ssl.certificate=certs/es01/es01.crt
+  #     - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+  #     - xpack.security.transport.ssl.enabled=false
+  #     - xpack.security.transport.ssl.key=certs/es01/es01.key
+  #     - xpack.security.transport.ssl.certificate=certs/es01/es01.crt
+  #     - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+  #     - xpack.security.transport.ssl.verification_mode=certificate
+  #     - xpack.license.self_generated.type=${LICENSE}
+
+  #   networks:
+  #     - iris
+
+  #   ulimits:
+  #     memlock:
+  #       soft: -1
+  #       hard: -1
+  #   healthcheck:
+  #     test:
+  #       [
+  #         "CMD-SHELL",
+  #         "curl -s --cacert config/certs/ca/ca.crt https://localhost:9200 | grep -q 'missing authentication credentials'",
+  #       ]
+  #     interval: 10s
+  #     timeout: 10s
+  #     retries: 120
+
+  # kibana:
+  #   depends_on:
+  #     es01:
+  #       condition: service_healthy
+  #   image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+  #   labels:
+  #     co.elastic.logs/enabled: false
+  #   volumes:
+  #     - certs:/usr/share/kibana/config/certs
+  #     - kibanadata:/usr/share/kibana/data
+  #   ports:
+  #     - ${KIBANA_PORT}:5601
+  #   environment:
+  #     - SERVERNAME=kibana
+  #     - ELASTICSEARCH_HOSTS=http://es01:9200
+  #     - ELASTICSEARCH_USERNAME=kibana_system
+  #     - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD}
+  #     - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=config/certs/ca/ca.crt
+  #     - XPACK_SECURITY_ENCRYPTIONKEY=${ENCRYPTION_KEY}
+  #     - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=${ENCRYPTION_KEY}
+  #     - XPACK_REPORTING_ENCRYPTIONKEY=${ENCRYPTION_KEY}
+  #   healthcheck:
+  #     test:
+  #       [
+  #         "CMD-SHELL",
+  #         "curl -s -I http://localhost:5601 | grep -q 'HTTP/1.1 302 Found'",
+  #       ]
+  #     interval: 10s
+  #     timeout: 10s
+  #     retries: 120
+  #   networks:
+  #     - iris
+
+  # filebeat01:
+  #   depends_on:
+  #     es01:
+  #       condition: service_healthy
+  #   labels:
+  #     - co.elastic.logs/enabled=false
+  #   build:
+  #     context: .
+  #     dockerfile: filebeat/Dockerfile
+  #   user: root
+  #   volumes:
+  #     - certs:/usr/share/filebeat/certs
+  #     - filebeatdata01:/usr/share/filebeat/data
+  #     - "./filebeat_ingest_data/:/usr/share/filebeat/ingest_data/"
+  #     #      - "./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro"
+  #     - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+  #     - "/var/run/docker.sock:/var/run/docker.sock:ro"
+  #   environment:
+  #     - ELASTIC_USER=elastic
+  #     - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+  #     - ELASTIC_HOSTS=https://es01:9200
+  #     - KIBANA_HOSTS=http://kibana:5601
+  #     - LOGSTASH_HOSTS=http://logstash01:9600
+
+  # logstash01:
+  #   depends_on:
+  #     es01:
+  #       condition: service_healthy
+  #     kibana:
+  #       condition: service_healthy
+  #   image: docker.elastic.co/logstash/logstash:${STACK_VERSION}
+  #   labels:
+  #     co.elastic.logs/enabled: false
+  #   user: root
+  #   volumes:
+  #     - certs:/usr/share/logstash/certs
+  #     - logstashdata01:/usr/share/logstash/data
+  #     - "./logstash_ingest_data/:/usr/share/logstash/ingest_data/"
+  #     - "./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro"
+  #   environment:
+  #     - xpack.monitoring.enabled=false
+  #     - ELASTIC_USER=elastic
+  #     - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+  #     - ELASTIC_HOSTS=https://es01:9200
+
+  # grafana:
+  #   image: grafana/grafana-enterprise
+  #   container_name: grafana
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3000:3000"
+  #   networks:
+  #     - iris
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    restart: "unless-stopped"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - "./nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
+    ports:
+      - "80:80"
+    networks:
+      - iris
     depends_on:
       - oncall-web
-    networks:
-      - iris
+      # - oncall-web2
 
-  node-exporter:
-    image: quay.io/prometheus/node-exporter:latest
-    container_name: node-exporter
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.rootfs=/rootfs'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-      - '--no-collector.mdadm'
-      - '--no-collector.ipvs'
-      - '--no-collector.infiniband'
-      - '--no-collector.bonding'
-      - '--no-collector.conntrack'
-      - '--no-collector.fibrechannel'
-      - '--no-collector.nfs'
-      - '--no-collector.nfsd'
-      - '--no-collector.rapl'
-      - '--no-collector.tapestats'
-      - '--no-collector.zfs'
-      - '--collector.textfile.directory=/var/lib/node_exporter/textfile_collector'
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-      - textfile:/var/lib/node_exporter/textfile_collector
-    restart: unless-stopped
-    ports:
-      - "9100:9100"
-    networks:
-      - iris
-    depends_on:
-      - oncall-web
-
-  blackbox_exporter:
-    image: prom/blackbox-exporter
-    container_name: backbox_exporter
-    volumes:
-      - ./prometheus/blackbox.yml:/config/blackbox.yml
-    command:
-      - '--config.file=/config/blackbox.yml'
-    restart: unless-stopped
-    networks:
-      - iris
-    ports:
-      - '9115:9115'
-    depends_on:
-      - oncall-web
-
-  custom_exporter:
-    build: ./prometheus/custom_exporter
-    container_name: custom_exporter
-    networks:
-      - iris
-    ports:
-      - '8000:8000'
+  # nginx-exporter:
+  #   image: nginx/nginx-prometheus-exporter:latest
+  #   container_name: nginx-exporter
+  #   ports:
+  #     - "9113:9113"
+  #   command: >
+  #     -nginx.scrape-uri=http://nginx:80/metrics
+  #     -web.telemetry-path=/metrics
+  #   networks:
+  #     - iris
 
 networks:
   iris:
     name: iris
+  default:
+    name: elastic
+    external: false
+
 volumes:
   textfile:
+  certs:
+    driver: local
+  esdata01:
+    driver: local
+  kibanadata:
+    driver: local
+  filebeatdata01:
+    driver: local
+  logstashdata01:
+    driver: local

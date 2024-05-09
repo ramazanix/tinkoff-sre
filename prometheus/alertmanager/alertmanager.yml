@@ -1,0 +1,47 @@
+global:
+  resolve_timeout: 10s
+
+time_intervals:
+  - name: offhours
+    time_intervals:
+      - weekdays: ["monday:friday"]
+
+  - name: holidays
+    time_intervals:
+      - weekdays: ["sunday:saturday"]
+
+route:
+  group_by: ["alertname"]
+  group_wait: 3s
+  receiver: "telegram_bot"
+
+  routes:
+    - receiver: "telegram_bot"
+      matchers:
+        - severity="warning"
+      active_time_intervals:
+        - offhours
+      mute_time_intervals:
+        - holidays
+
+    - receiver: "telegram_bot2"
+      matchers:
+        - severity="critical"
+      active_time_intervals:
+        - offhours
+        - holidays
+
+receivers:
+  - name: "telegram_bot"
+    telegram_configs:
+      - bot_token: "6429464001:AAFLlTzPAfgdlgpKNtOxJ_uZubwx3n_iEzs"
+        api_url: "https://api.telegram.org"
+        chat_id: 665224592
+        parse_mode: "HTML"
+
+  - name: "telegram_bot2"
+    telegram_configs:
+      - bot_token: "6799156339:AAGQmxC3OBccc-Ae5EB1FcXX2Lqx4MngJb0"
+        api_url: "https://api.telegram.org"
+        chat_id: 665224592
+        parse_mode: "HTML"
